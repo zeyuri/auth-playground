@@ -1,7 +1,9 @@
-import React, { createContext, useReducer } from "react"
+import React from "react"
+import Auth from "./Auth"
 
-const MeetupContext = createContext()
-const UserContext = createContext()
+const auth = new Auth()
+const MeetupContext = React.createContext()
+const UserContext = React.createContext()
 
 const initialState = {
   meetup: {
@@ -30,14 +32,42 @@ const reducer = (state, action) => {
         ),
         subscribed: false,
       }
+    case "loginUser":
+      return {
+        ...state,
+        isAuthenticated: action.payload.authenticated,
+        name: action.payload.user.name,
+      }
     default:
       return state
   }
 }
 
-const MeetupContextProvider = ({ user, ...props }) => {
-  const [state, dispatch] = useReducer(reducer, initialState.meetup)
+const UserContextProvider = (props) => {
+  const [state, dispatch] = React.useReducer(reducer, initialState.user)
+  auth.handleAuthentication().then(() => {
+    dispatch({
+      type: "loginUser",
+      payload: {
+        authenticated: true,
+        user: auth.getProfile(),
+      },
+    })
+  })
+  return (
+    <UserContext.Provider
+      value={{
+        ...state,
+        handleLogin: auth.signIn,
+      }}
+    >
+      {props.children}
+    </UserContext.Provider>
+  )
+}
 
+const MeetupContextProvider = ({ user, ...props }) => {
+  const [state, dispatch] = React.useReducer(reducer, initialState.meetup)
   return (
     <MeetupContext.Provider
       value={{
@@ -53,25 +83,24 @@ const MeetupContextProvider = ({ user, ...props }) => {
   )
 }
 
-function App() {
-  return (
-    <UserContext.Provider value={initialState.user}>
-      <UserContext.Consumer>
-        {(user) => (
-          <MeetupContextProvider user={user}>
-            <MeetupContext.Consumer>
-              {(meetup) => (
+const App = () => (
+  <UserContextProvider>
+    <UserContext.Consumer>
+      {(user) => (
+        <MeetupContextProvider user={user}>
+          <MeetupContext.Consumer>
+            {(meetup) => (
+              <div>
+                <h1>{meetup.title}</h1>
+                <span>{meetup.date}</span>
                 <div>
-                  <h1>{meetup.title}</h1>
-                  <span>{meetup.date}</span>
-                  <div>
-                    <h2>{`Attendees (${meetup.attendees.length})`}</h2>
-                    {meetup.attendees.map((attendant, i) => (
-                      <li key={i}>{attendant}</li>
-                    ))}
-                    <p>
-                      {console.log(meetup.subscribed)}
-                      {!meetup.subscribed ? (
+                  <h2>{`Attendees (${meetup.attendees.length})`}</h2>
+                  {meetup.attendees.map((attendant) => (
+                    <li key={attendant}>{attendant}</li>
+                  ))}
+                  <p>
+                    {user.isAuthenticated ? (
+                      !meetup.subscribed ? (
                         <button onClick={meetup.handleSubscribe}>
                           Subscribe
                         </button>
@@ -79,17 +108,19 @@ function App() {
                         <button onClick={meetup.handleUnSubscribe}>
                           Unsubscribe
                         </button>
-                      )}
-                    </p>
-                  </div>
+                      )
+                    ) : (
+                      <button onClick={user.handleLogin}>Login</button>
+                    )}
+                  </p>
                 </div>
-              )}
-            </MeetupContext.Consumer>
-          </MeetupContextProvider>
-        )}
-      </UserContext.Consumer>
-    </UserContext.Provider>
-  )
-}
+              </div>
+            )}
+          </MeetupContext.Consumer>
+        </MeetupContextProvider>
+      )}
+    </UserContext.Consumer>
+  </UserContextProvider>
+)
 
 export default App
